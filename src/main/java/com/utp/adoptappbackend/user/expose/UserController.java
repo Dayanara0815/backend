@@ -5,9 +5,7 @@ import com.utp.adoptappbackend.common.model.PageResponse;
 import com.utp.adoptappbackend.common.model.enumeration.Role;
 import com.utp.adoptappbackend.common.util.ConstantUtil;
 import com.utp.adoptappbackend.user.model.dto.AuthRegisterRequest;
-import com.utp.adoptappbackend.user.model.dto.ForgotPasswordRequest;
 import com.utp.adoptappbackend.user.model.dto.LoginResponse;
-import com.utp.adoptappbackend.user.model.dto.ResetPasswordRequest;
 import com.utp.adoptappbackend.user.model.dto.UserRequest;
 import com.utp.adoptappbackend.user.model.dto.UserResponse;
 import com.utp.adoptappbackend.user.model.dto.UserUpdateRequest;
@@ -58,24 +56,6 @@ public class UserController {
                 .code(ConstantUtil.OK_CODE)
                 .message(ConstantUtil.OK_MESSAGE)
                 .data(userService.update(id, request))
-                .build());
-    }
-
-    @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        userService.forgotPassword(request);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .code(ConstantUtil.OK_CODE)
-                .message("Se ha enviado un enlace de recuperación a tu correo electrónico.")
-                .build());
-    }
-
-    @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        userService.resetPassword(request);
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .code(ConstantUtil.OK_CODE)
-                .message("La contraseña ha sido actualizada exitosamente.")
                 .build());
     }
 
