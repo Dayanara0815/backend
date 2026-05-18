@@ -8,22 +8,17 @@ import com.utp.adoptappbackend.common.util.TokenUtil;
 import com.utp.adoptappbackend.shared.client.AuthClient;
 import com.utp.adoptappbackend.user.mapper.UserMapper;
 import com.utp.adoptappbackend.user.model.Hostel;
-import com.utp.adoptappbackend.user.model.PasswordResetToken;
 import com.utp.adoptappbackend.user.model.User;
 import com.utp.adoptappbackend.user.model.dto.AuthRegisterRequest;
-import com.utp.adoptappbackend.user.model.dto.ForgotPasswordRequest;
 import com.utp.adoptappbackend.user.model.dto.LoginResponse;
-import com.utp.adoptappbackend.user.model.dto.ResetPasswordRequest;
 import com.utp.adoptappbackend.user.model.dto.TokenClientResponse;
 import com.utp.adoptappbackend.user.model.dto.UserRequest;
 import com.utp.adoptappbackend.user.model.dto.UserResponse;
 import com.utp.adoptappbackend.user.model.dto.UserUpdateRequest;
-import com.utp.adoptappbackend.user.repository.PasswordResetTokenRepository;
 import com.utp.adoptappbackend.user.repository.UserRepository;
 import com.utp.adoptappbackend.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
@@ -31,7 +26,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -43,10 +37,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final AuthClient authClient;
-    private final PasswordResetTokenRepository passwordResetTokenRepository;
-    private final PasswordEncoder passwordEncoder;
 
-    private static final long TOKEN_EXPIRY_MINUTES = 15;
 
     @Override
     @Transactional
@@ -147,75 +138,6 @@ public class UserServiceImpl implements UserService {
 
         User savedUser = userRepository.save(user);
         return userMapper.toResponse(savedUser);
-    }
-
-    @Override
-    @Transactional
-    public void forgotPassword(ForgotPasswordRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ApiValidateException("El correo no está registrado en el sistema."));
-
-        // Invalidad token anterior si existe
-        passwordResetTokenRepository.findByUserIdAndUsedFalse(user.getId())
-                .ifPresent(token -> token.setUsed(true));
-
-        // Generar nuevo token
-        String token = TokenUtil.generateToken();
-        LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(TOKEN_EXPIRY_MINUTES);
-
-        PasswordResetToken resetToken = PasswordResetToken.builder()
-                .token(token)
-                .user(user)
-                .expiryDate(expiryDate)
-                .used(false)
-                .build();
-
-        passwordResetTokenRepository.save(resetToken);
-
-        log.info("Token de recuperación de contraseña generado para el usuario: {}", user.getEmail());
-        // TODO: Integrar con servicio de email para enviar el token al correo
-        // emailService.sendPasswordResetEmail(user.getEmail(), token);
-    }
-
-    @Override
-    @Transactional
-    public void resetPassword(ResetPasswordRequest request) {
-        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
-            throw new ApiValidateException("Las contraseñas no coinciden.");
-        }
-
-        if (request.getNewPassword().length() < 8) {
-            throw new ApiValidateException("La contraseña debe tener al menos 8 caracteres.");
-        }
-
-        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(request.getToken())
-                .orElseThrow(() -> new ApiValidateException("El token de recuperación es inválido."));
-
-        if (resetToken.getUsed()) {
-            throw new ApiValidateException("El token de recuperación ya ha sido utilizado.");
-        }
-
-        if (LocalDateTime.now().isAfter(resetToken.getExpiryDate())) {
-            throw new ApiValidateException("El token de recuperación ha expirado.");
-        }
-
-        User user = resetToken.getUser();
-        String encodedPassword = passwordEncoder.encode(request.getNewPassword());
-        user.setPassword(encodedPassword);
-
-        // Actualizar contraseña en el microservicio de autenticación
-        try {
-            authClient.updatePassword(user.getEmail(), request.getNewPassword());
-        } catch (Exception e) {
-            log.error("Error actualizando contraseña en el servicio de autenticación: {}", e.getMessage());
-            throw new ApiValidateException("Error al actualizar la contraseña en el servicio de autenticación.");
-        }
-
-        resetToken.setUsed(true);
-        userRepository.save(user);
-        passwordResetTokenRepository.save(resetToken);
-
-        log.info("Contraseña actualizada exitosamente para el usuario: {}", user.getEmail());
     }
 
     @Override
