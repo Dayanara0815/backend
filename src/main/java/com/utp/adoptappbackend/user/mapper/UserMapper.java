@@ -21,7 +21,6 @@ public interface UserMapper {
 
     UserResponse toResponse(User entity);
 
-    @Mapping(target = "isActive", source = "hostel.isActive")
     HostelResponse toHostelResponse(Hostel entity);
 
     @Mapping(target = "id", ignore = true)
